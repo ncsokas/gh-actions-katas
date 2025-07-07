@@ -3,74 +3,91 @@ name: Main workflow
 on: push
 
 env:
-  # Global environment variables for the Docker job
   DOCKER_USERNAME: ${{ github.actor }}
   DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
   GIT_COMMIT: ${{ github.sha }}
 
 jobs:
-  build:
-    name: 🏗️ Build
-    runs-on: ubuntu-latest
-    container: gradle:6-jdk11
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v4
-
-      - name: Build application
-        run: ci/build-app.sh
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: code
-          path: .
-          include-hidden-files: true
-
-  test:
-    name: 🧪 Test
-    runs-on: ubuntu-latest
-    needs: build
-    container: gradle:6-jdk11
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: code
-          path: .
-
-      - name: Run unit tests
-        run: ci/unit-test-app.sh
-
   lint:
-    name: 💅 Lint
+    name: "💅 Lint Code"
     runs-on: ubuntu-latest
     steps:
-      - name: Clone repository
+      - name: "⤵️ Clone repository"
         uses: actions/checkout@v4
 
-      - name: Run linting
+      - name: "🔬 Run linter"
         uses: super-linter/super-linter/slim@v7
         env:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISABLE_ERRORS: true
 
-  docker:
-    name: 🐳 Build and Push Docker Image
+  build:
+    name: "🏗️ Build Application"
     runs-on: ubuntu-latest
-    needs: [test] # Important: only runs after tests pass
-    permissions:
-      packages: write
-    steps:   
-      - name: Download code artifact
+    container: gradle:6-jdk11
+    steps:
+      - name: "⤵️ Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "🔧 Grant execute permission to build script"
+        run: chmod +x ./ci/build-app.sh
+
+      - name: "🔨 Build application"
+        run: ./ci/build-app.sh
+
+      - name: "⬆️ Upload build output artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: build/
+
+  test:
+    name: "🧪 Run Unit Tests"
+    runs-on: ubuntu-latest
+    needs: build # This job depends on the 'build' job.
+    container: gradle:6-jdk11
+    steps:
+      - name: "⤵️ Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "⬇️ Download build output"
         uses: actions/download-artifact@v4
         with:
-          name: code
-          path: .
+          name: build-output
+          path: build/
 
-      - name: Build Docker image
-        run: bash ci/build-docker.sh
+      - name: "🔧 Grant execute permission to test script"
+        run: chmod +x ./ci/unit-test-app.sh
 
-      - name: Push Docker image
-        run: bash ci/push-docker.sh
+      - name: "✅ Run tests"
+        run: ./ci/unit-test-app.sh
+
+  publish:
+    name: "🐳 Build and Push Docker Image"
+    runs-on: ubuntu-latest
+    # CRITICAL: This job depends on both test and lint passing.
+    needs: [test, lint]
+    permissions:
+      # This permission is required to push to GitHub Packages (Container Registry).
+      packages: write
+    steps:
+      - name: "⤵️ Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "⬇️ Download build output"
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: build/
+
+      - name: "🔧 Grant execute permission to Docker scripts"
+        run: |
+          chmod +x ./ci/build-docker.sh
+          chmod +x ./ci/push-docker.sh
+
+      - name: "🐳 Build Docker image"
+        run: bash ./ci/build-docker.sh
+
+      - name: "🚀 Push Docker image"
+        run: bash ./ci/push-docker.sh
