@@ -4,7 +4,7 @@ on: push
 
 env:
   # Global environment variables for the Docker job
-  DOCKER_USERNAME: ${{ github.repository }}
+  DOCKER_USERNAME: ${{ github.actor }}
   DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
   GIT_COMMIT: ${{ github.sha }}
 
