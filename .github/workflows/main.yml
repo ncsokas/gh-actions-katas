@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build application
-        run: ./ci/build-app.sh
+        run: ci/build-app.sh
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -40,7 +40,7 @@ jobs:
           path: .
 
       - name: Run unit tests
-        run: ./ci/unit-test-app.sh
+        run: ci/unit-test-app.sh
 
   lint:
     name: 💅 Lint
