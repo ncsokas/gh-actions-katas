@@ -39,8 +39,8 @@ jobs:
       - name: "⬆️ Upload build output artifact"
         uses: actions/upload-artifact@v4
         with:
-          name: build-output
-          path: build/
+          name: code
+          path: .
 
   test:
     name: "🧪 Run Unit Tests"
@@ -54,8 +54,8 @@ jobs:
       - name: "⬇️ Download build output"
         uses: actions/download-artifact@v4
         with:
-          name: build-output
-          path: build/
+          name: code
+          path: .
 
       - name: "🔧 Grant execute permission to test script"
         run: chmod +x ./ci/unit-test-app.sh
@@ -78,8 +78,8 @@ jobs:
       - name: "⬇️ Download build output"
         uses: actions/download-artifact@v4
         with:
-          name: build-output
-          path: build/
+          name: code
+          path: .
 
       - name: "🔧 Grant execute permission to Docker scripts"
         run: |
