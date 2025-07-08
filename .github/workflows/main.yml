@@ -36,6 +36,11 @@ jobs:
       - name: "🔨 Build application"
         run: ./ci/build-app.sh
 
+      - name: "🧹 Fix permissions for cleanup"
+        run: |
+          chown -R $(id -u):$(id -g) .
+          chmod -R u+rwX .
+
       - name: "⬆️ Upload build output artifact"
         uses: actions/upload-artifact@v4
         with:
