@@ -10,12 +10,8 @@ env:
 jobs:
   lint:
     name: "💅 Lint Code"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
-      - name: "🧹 Fix permissions before lint"
-        run: |
-          sudo chown -R $(id -u):$(id -g) .
-          sudo chmod -R u+rwX .
       - name: "⤵️ Clone repository"
         uses: actions/checkout@v4
       - name: "🔬 Run linter"
@@ -27,7 +23,7 @@ jobs:
 
   build:
     name: "🏗️ Build Application"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     container: gradle:6-jdk11
     steps:
       - name: "⤵️ Clone repository"
@@ -36,10 +32,6 @@ jobs:
         run: chmod +x ./ci/build-app.sh
       - name: "🔨 Build application"
         run: ./ci/build-app.sh
-      - name: "🧹 Fix permissions for cleanup"
-        run: |
-          chown -R $(id -u):$(id -g) .
-          chmod -R u+rwX .
       - name: "⬆️ Upload build output artifact"
         uses: actions/upload-artifact@v4
         with:
@@ -48,7 +40,7 @@ jobs:
 
   test:
     name: "🧪 Run Unit Tests"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: build
     container: gradle:6-jdk11
     steps:
@@ -70,7 +62,7 @@ jobs:
 
   publish:
     name: "🐳 Build and Push Docker Image"
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: [test, lint]
     permissions:
       packages: write
@@ -92,7 +84,7 @@ jobs:
         run: bash ./ci/push-docker.sh
 
   Component-test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: publish
     steps:
       - name: Download code
@@ -106,7 +98,7 @@ jobs:
         run: ./ci/component-test.sh
 
   Performance-test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: publish
     steps:
       - name: Download code
