@@ -4,7 +4,7 @@ on: push
 
 env:
   docker_username: ${{ github.actor }} 
-  docker_password: ${{ secrets.GITHUB_TOKEN }} #Nees to be set to be made available to the workflow
+  docker_password: ${{ secrets.GITHUB_TOKEN }} # Needs to be set to be made available to the workflow
   GIT_COMMIT: ${{ github.sha }}
 
 jobs:
@@ -12,9 +12,12 @@ jobs:
     name: "💅 Lint Code"
     runs-on: self-hosted
     steps:
+      - name: "🧹 Fix permissions before lint"
+        run: |
+          sudo chown -R $(id -u):$(id -g) .
+          sudo chmod -R u+rwX .
       - name: "⤵️ Clone repository"
         uses: actions/checkout@v4
-
       - name: "🔬 Run linter"
         uses: super-linter/super-linter/slim@v7
         env:
@@ -29,18 +32,14 @@ jobs:
     steps:
       - name: "⤵️ Clone repository"
         uses: actions/checkout@v4
-
       - name: "🔧 Grant execute permission to build script"
         run: chmod +x ./ci/build-app.sh
-
       - name: "🔨 Build application"
         run: ./ci/build-app.sh
-
       - name: "🧹 Fix permissions for cleanup"
         run: |
           chown -R $(id -u):$(id -g) .
           chmod -R u+rwX .
-
       - name: "⬆️ Upload build output artifact"
         uses: actions/upload-artifact@v4
         with:
@@ -50,53 +49,47 @@ jobs:
   test:
     name: "🧪 Run Unit Tests"
     runs-on: self-hosted
-    needs: build # This job depends on the 'build' job.
+    needs: build
     container: gradle:6-jdk11
     steps:
       - name: "⤵️ Clone repository"
         uses: actions/checkout@v4
-
       - name: "⬇️ Download build output"
         uses: actions/download-artifact@v4
         with:
           name: code
           path: .
-
       - name: "🔧 Grant execute permission to test script"
         run: chmod +x ./ci/unit-test-app.sh
-
       - name: "✅ Run tests"
         run: ./ci/unit-test-app.sh
+      - name: "🧹 Fix permissions for cleanup"
+        run: |
+          chown -R $(id -u):$(id -g) .
+          chmod -R u+rwX .
 
   publish:
     name: "🐳 Build and Push Docker Image"
     runs-on: self-hosted
-    # CRITICAL: This job depends on both test and lint passing.
     needs: [test, lint]
     permissions:
-      # This permission is required to push to GitHub Packages (Container Registry).
       packages: write
     steps:
       - name: "⤵️ Clone repository"
         uses: actions/checkout@v4
-
       - name: "⬇️ Download build output"
         uses: actions/download-artifact@v4
         with:
           name: code
           path: .
-
       - name: "🔧 Grant execute permission to Docker scripts"
         run: |
           chmod +x ./ci/build-docker.sh
           chmod +x ./ci/push-docker.sh
-
       - name: "🐳 Build Docker image"
         run: bash ./ci/build-docker.sh
-
       - name: "🚀 Push Docker image"
         run: bash ./ci/push-docker.sh
-
 
   Component-test:
     runs-on: self-hosted
@@ -107,10 +100,8 @@ jobs:
         with:
           name: code
           path: .
-          
       - name: Make script executable
         run: chmod +x ci/component-test.sh
-
       - name: Execute component test
         run: ./ci/component-test.sh
 
@@ -123,9 +114,7 @@ jobs:
         with:
           name: code
           path: .
-          
       - name: Make script executable
         run: chmod +x ci/performance-test.sh
-
       - name: Execute performance test
         run: ./ci/performance-test.sh
