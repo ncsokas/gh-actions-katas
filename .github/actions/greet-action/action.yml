@@ -1,0 +1,26 @@
+name: 'Greet and Set Time Action'
+description: 'A composite action that greets someone and outputs the time.'
+
+inputs:
+  who-to-greet:
+    description: 'The person to greet'
+    type: string
+    required: true
+    default: 'World'
+
+outputs:
+  current-time:
+    description: 'The time when greeting.'
+    value: ${{ steps.time.outputs.time }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Greet someone
+      run: echo "Hello ${{ inputs.who-to-greet }}"
+      shell: bash
+      
+    - name: Set time
+      id: time
+      run: echo "time=$(date)" >> $GITHUB_OUTPUT
+      shell: bash
