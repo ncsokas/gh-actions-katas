@@ -1,6 +1,6 @@
 name: Caching workflow
 
-on: push
+on: workflow_dispatch
 
 env:
   docker_username: ${{ github.actor }}
