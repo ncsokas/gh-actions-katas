@@ -1,0 +1,145 @@
+name: Caching workflow
+
+on: push
+
+env:
+  docker_username: ${{ github.actor }}
+  docker_password: ${{ secrets.GITHUB_TOKEN }}
+  GIT_COMMIT: ${{ github.sha }}
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  lint:
+    name: "Lint Code"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+      - name: "Run linter"
+        uses: super-linter/super-linter/slim@v7
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISABLE_ERRORS: true
+
+  build:
+    name: "Build Application"
+    runs-on: ubuntu-latest
+    container: gradle:6-jdk11
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "Cache Gradle packages"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: "Grant execute permission"
+        run: chmod +x ./ci/build-app.sh
+      - name: "Build application"
+        run: ./ci/build-app.sh
+
+      - name: "Upload build artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: code
+          path: .
+
+  test:
+    name: "Run Unit Tests"
+    runs-on: ubuntu-latest
+    needs: build
+    container: gradle:6-jdk11
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "Cache Gradle packages"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: "Download build artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: code
+          path: .
+
+      - name: "Grant execute permission"
+        run: chmod +x ./ci/unit-test-app.sh
+      - name: "Run tests"
+        run: ./ci/unit-test-app.sh
+
+  publish:
+    name: "Build and Push Docker Image"
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "Download build artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: code
+          path: .
+
+      - name: "Log in to GitHub Container Registry"
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Build and push Docker image"
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.actor }}/micronaut-app:latest
+            ${{ env.REGISTRY }}/${{ github.actor }}/micronaut-app:1.0-${{ env.GIT_COMMIT }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  component-test:
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "Make script executable"
+        run: chmod +x ci/component-test.sh
+      - name: "Execute component test"
+        run: ./ci/component-test.sh
+
+  performance-test:
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "Make script executable"
+        run: chmod +x ci/performance-test.sh
+      - name: "Execute performance test"
+        run: ./ci/performance-test.sh
