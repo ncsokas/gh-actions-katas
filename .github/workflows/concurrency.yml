@@ -1,0 +1,141 @@
+name: Main workflow
+
+on: workflow_dispatch
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  docker_username: ${{ github.actor }}
+  docker_password: ${{ secrets.GITHUB_TOKEN }} # Needs to be set to be made available to the workflow
+  GIT_COMMIT: ${{ github.sha }}
+
+jobs:
+  lint:
+    name: "Lint Code"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+      - name: "Run linter"
+        uses: super-linter/super-linter/slim@v7
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISABLE_ERRORS: true
+
+  build:
+    name: "Build with Java ${{ matrix.java }} on ${{ matrix.os }}"
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        java: [11, 17]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+
+      - name: "Patch Gradle file"
+        if: runner.os == 'Linux' # This command works on Linux runners
+        run: |
+          sed -i 's/id "com.github.johnrengelman.shadow" version "5.0.0"/id "com.github.johnrengelman.shadow" version "8.1.1"/' app/build.gradle
+          sed -i '/jcenter\.bintray\.com/d' app/build.gradle
+          sed -i '/net\.ltgt\.apt-eclipse/d' app/build.gradle
+
+      - name: "Setup Java"
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java }}
+
+      - name: "Grant execute permission to build script"
+        if: runner.os != 'Windows'
+        run: chmod +x ./ci/build-app.sh
+
+      - name: "Build application"
+        run: ./ci/build-app.sh
+
+      - name: "Upload build output artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-${{ matrix.os }}-${{ matrix.java }}
+          path: .
+
+  test:
+    name: "Test with Java ${{ matrix.java }} on ${{ matrix.os }}"
+    needs: build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        java: [11, 17]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+      - name: "Download build output"
+        uses: actions/download-artifact@v4
+        with:
+          name: code-${{ matrix.os }}-${{ matrix.java }}
+          path: .
+      - name: "Grant execute permission to test script"
+        if: runner.os != 'Windows'
+        run: chmod +x ./ci/unit-test-app.sh
+      - name: "Run tests"
+        run: ./ci/unit-test-app.sh
+      - name: "Fix permissions for cleanup"
+        if: runner.os != 'Windows'
+        run: |
+          chown -R $(id -u):$(id -g) .
+          chmod -R u+rwX .
+
+  publish:
+    name: "Build and Push Docker Image"
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    permissions:
+      packages: write
+    steps:
+      - name: "Clone repository"
+        uses: actions/checkout@v4
+      - name: "Download build output"
+        uses: actions/download-artifact@v4
+        with:
+          name: code-ubuntu-latest-11 # Using a specific build artifact for the docker image
+          path: .
+      - name: "Grant execute permission to Docker scripts"
+        run: |
+          chmod +x ./ci/build-docker.sh
+          chmod +x ./ci/push-docker.sh
+      - name: "Build Docker image"
+        run: bash ./ci/build-docker.sh
+      - name: "Push Docker image"
+        run: bash ./ci/push-docker.sh
+
+  Component-test:
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: Download code
+        uses: actions/download-artifact@v4
+        with:
+          name: code-ubuntu-latest-11 # Using the same artifact as publish
+          path: .
+      - name: Make script executable
+        run: chmod +x ci/component-test.sh
+      - name: Execute component test
+        run: ./ci/component-test.sh
+
+  Performance-test:
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: Download code
+        uses: actions/download-artifact@v4
+        with:
+          name: code-ubuntu-latest-11 # Using the same artifact as publish
+          path: .
+      - name: Make script executable
+        run: chmod +x ci/performance-test.sh
+      - name: Execute performance test
+        run: ./ci/performance-test.sh
