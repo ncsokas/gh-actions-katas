@@ -31,6 +31,11 @@ jobs:
     steps:
       - name: "Clone repository"
         uses: actions/checkout@v4
+      - name: "Patch Gradle file"
+        if: runner.os == 'Linux' # This command works on Linux runners
+        run: |
+          sed -i 's/id "com.github.johnrengelman.shadow" version "5.0.0"/id "com.github.johnrengelman.shadow" version "8.1.1"/' app/build.gradle
+          sed -i '/jcenter\.bintray\.com/d' app/build.gradle
       - name: "Setup Java"
         uses: actions/setup-java@v4
         with:
