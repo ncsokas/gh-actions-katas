@@ -34,8 +34,12 @@ jobs:
       - name: "Patch Gradle file"
         if: runner.os == 'Linux' # This command works on Linux runners
         run: |
+          # Update the ShadowJar plugin to a compatible version (e.g., 8.1.1)
           sed -i 's/id "com.github.johnrengelman.shadow" version "5.0.0"/id "com.github.johnrengelman.shadow" version "8.1.1"/' app/build.gradle
+          # Remove the JCenter repository which is no longer active
           sed -i '/jcenter\.bintray\.com/d' app/build.gradle
+          # Remove the incompatible apt-eclipse plugin
+          sed -i '/net\.ltgt\.apt-eclipse/d' app/build.gradle
       - name: "Setup Java"
         uses: actions/setup-java@v4
         with:
